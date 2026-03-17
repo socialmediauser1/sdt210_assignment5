@@ -23,32 +23,99 @@ I chose this theme because I built a Kanban board before in my first Java(101) c
 - Archive completed cards with history view
 - WIP limit warnings and column highlighting
 
+## Backend Choice
+
+**Supabase** (PostgreSQL + Supabase Auth)
+
+- Database: PostgreSQL tables (`boards`, `board_members`, `columns`, `cards`, `archived_cards`)
+- Auth: Supabase Auth (email + password, JWT session)
+- Row Level Security (RLS) policies enforce per-user and per-board access
+- Custom SQL RPCs: `join_board_by_code`, `get_board_members`
+- All backend calls go through `src/services/api.ts`, `src/services/boardsApi.ts`, and `src/services/auth.ts` — components never import Supabase directly
+
+The app also runs in **demo mode** (no Supabase credentials) using an in-memory mock implementation in `src/services/api.ts`.
+
+## Auth Approach
+
+- Service: `src/services/auth.ts` wraps all Supabase Auth calls
+- Store: `src/store/authStore.ts` exposes `signIn`, `signUp`, `signOut`, `initialize`
+- Session persists across page reload via Supabase's built-in JWT storage
+- Protected routes: unauthenticated users are redirected to `/login`
+- Login page: `src/pages/Login.tsx` (email + password form with sign-in / sign-up toggle)
+- Logout button: always visible in the nav when authenticated
+
+## Feature Verification
+
+| Feature | Implementation | Status |
+|---|---|---|
+| Create / edit / delete cards | `addCard`, `editCard`, `deleteCard` in kanbanStore | ✓ |
+| Drag-and-drop card movement | HTML5 DnD → `moveCard` in kanbanStore | ✓ |
+| WIP limits with warnings | `col.wipLimit` + red highlight when reached | ✓ |
+| Category labels (Bug/Feature/Docs) | `card.category`, color-coded badges | ✓ |
+| Priority levels (High/Med/Low) | `card.priority`, pill in card title row | ✓ |
+| Swimlane grouping | `setSwimlaneGroupBy`, `groupCards()` helper | ✓ |
+| Filter by category + search | `setFilter`, `filteredCards` derived value | ✓ |
+| Card age + time in column | `createdAt`, `columnEnteredAt` fields | ✓ |
+| Archive + restore | `archiveCard`, `restoreArchivedCard` | ✓ |
+| Board statistics | Stats page: column load, throughput, summary | ✓ |
+| Personal board (auto-created) | `ensurePersonalBoard` in boardsApi | ✓ |
+| Team boards + join code | `createTeamBoard`, `joinByCode` in boardsStore | ✓ |
+| Board owner delete / member leave | `deleteBoard`, `leaveBoard` in boardsStore | ✓ |
+| Assignee dropdown (team boards) | `get_board_members` RPC → `boardMembers` state | ✓ |
+| Auth sign in / sign up / sign out | `authService` + `authStore` | ✓ |
+| Protected routes | `<Navigate to="/login">` when `!user` | ✓ |
+| Session persistence | Supabase JWT in localStorage | ✓ |
+| Loading + error states | `loading: boolean`, `error: string \| null` on all stores | ✓ |
+| Settings page | `src/pages/Settings.tsx` | ✓ |
+| About page | `src/pages/About.tsx` | ✓ |
+
 ## How to Run the App
 
 Prerequisites: Node.js 18+ and npm.
 
-1. Install dependencies
+### Demo mode (no backend required)
 
 ```bash
 npm install
-```
-
-2. Start the development server
-
-```bash
 npm run dev
 ```
 
-3. Build for production
+The app opens at `http://localhost:5173` with an in-memory mock backend.
+
+### Full Supabase mode
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Run the SQL blocks documented in `src/services/boardsApi.ts` (blocks 1–8) in the Supabase SQL editor
+3. Copy your project URL and anon key to a `.env` file:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+4. Start the dev server:
+
+```bash
+npm install
+npm run dev
+```
+
+### Run tests
+
+```bash
+npm run test -- --run
+```
+
+### Type-check
+
+```bash
+npm exec -- tsc --noEmit
+```
+
+### Build for production
 
 ```bash
 npm run build
-```
-
-4. Preview the production build
-
-```bash
-npm run preview
 ```
 
 ## Project Structure

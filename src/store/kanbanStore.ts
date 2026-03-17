@@ -1,12 +1,19 @@
 import { create } from "zustand";
 import {
   createEmptyBoardSnapshot,
-  kanbanApi,
+  kanbanApi as mockApi,
   resetKanbanApiMock,
   type BoardSnapshot,
   type CreateCardRequest,
+  type UpdateCardRequest,
+  type CreateColumnRequest,
+  type UpdateColumnRequest,
 } from "../services/api";
+import { supabaseKanbanApi } from "../services/supabaseApi";
 import type { ArchivedCardEntry, Card, Column, FilterState, SwimlaneGroupBy } from "../types";
+
+const USE_SUPABASE = !!import.meta.env.VITE_SUPABASE_URL;
+const kanbanApi = USE_SUPABASE ? supabaseKanbanApi : mockApi;
 
 export type CreateCardInput = CreateCardRequest;
 
@@ -21,11 +28,18 @@ export interface KanbanState {
 }
 
 interface KanbanActions {
+  initialize: () => Promise<void>;
   addCard: (input: CreateCardInput) => Promise<void>;
+  editCard: (cardId: string, payload: UpdateCardRequest) => Promise<void>;
   moveCard: (cardId: string, targetColumnId: string) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   archiveCard: (cardId: string) => Promise<void>;
   restoreArchivedCard: (cardId: string, targetColumnId?: string) => Promise<void>;
+  setFilter: (payload: Partial<FilterState>) => Promise<void>;
+  setSwimlaneGroupBy: (groupBy: SwimlaneGroupBy | null) => Promise<void>;
+  addColumn: (input: CreateColumnRequest) => Promise<void>;
+  editColumn: (columnId: string, payload: UpdateColumnRequest) => Promise<void>;
+  removeColumn: (columnId: string, fallbackColumnId?: string) => Promise<void>;
   resetState: () => void;
 }
 
@@ -42,9 +56,12 @@ function toStoreState(snapshot: BoardSnapshot): Omit<KanbanState, "loading" | "e
 }
 
 function buildInitialState(): KanbanState {
+  const snapshot = USE_SUPABASE
+    ? { columns: [], cards: [], archivedEntries: [], swimlaneGroupBy: null, filter: { category: null, swimlaneValue: null, searchQuery: "" } }
+    : createEmptyBoardSnapshot();
   return {
-    ...toStoreState(createEmptyBoardSnapshot()),
-    loading: false,
+    ...toStoreState(snapshot),
+    loading: USE_SUPABASE,
     error: null,
   };
 }
@@ -95,6 +112,15 @@ export const useKanbanStore = create<KanbanStore>((set) => {
 
   return {
     ...buildInitialState(),
+    initialize: async () => {
+      set({ loading: true, error: null });
+      try {
+        await syncBoard();
+        set({ loading: false });
+      } catch (error) {
+        set({ loading: false, error: getErrorMessage(error, "Failed to load board.") });
+      }
+    },
     addCard: async (input) => {
       const title = input.title.trim();
 
@@ -136,8 +162,50 @@ export const useKanbanStore = create<KanbanStore>((set) => {
         return restoredCard !== null;
       }, "Failed to restore archived card.");
     },
+    editCard: async (cardId, payload) => {
+      await runMutation(async () => {
+        const result = await kanbanApi.updateCard(cardId, payload);
+        return result !== null;
+      }, "Failed to update card.");
+    },
+    setFilter: async (payload) => {
+      await runMutation(async () => {
+        await kanbanApi.updateFilter(payload);
+        return true;
+      }, "Failed to update filter.");
+    },
+    setSwimlaneGroupBy: async (groupBy) => {
+      await runMutation(async () => {
+        await kanbanApi.updateSwimlaneGroupBy(groupBy);
+        return true;
+      }, "Failed to update swimlane grouping.");
+    },
+    addColumn: async (input) => {
+      const title = input.title.trim();
+      if (!title) {
+        set({ error: "Column title cannot be empty." });
+        return;
+      }
+      await runMutation(async () => {
+        await kanbanApi.createColumn({ ...input, title });
+        return true;
+      }, "Failed to create column.");
+    },
+    editColumn: async (columnId, payload) => {
+      await runMutation(async () => {
+        const result = await kanbanApi.updateColumn(columnId, payload);
+        return result !== null;
+      }, "Failed to update column.");
+    },
+    removeColumn: async (columnId, fallbackColumnId) => {
+      await runMutation(async () => {
+        return kanbanApi.deleteColumn(columnId, fallbackColumnId);
+      }, "Failed to delete column.");
+    },
     resetState: () => {
-      resetKanbanApiMock();
+      if (!USE_SUPABASE) {
+        resetKanbanApiMock();
+      }
       set(buildInitialState());
     },
   };

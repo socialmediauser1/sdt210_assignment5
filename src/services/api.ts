@@ -324,7 +324,7 @@ export const kanbanApi: KanbanApiService = {
   },
 
   async deleteColumn(columnId, fallbackColumnId) {
-    if (mockDb.columns.length <= 1) {
+    if (mockDb.columns.length <= 3) {
       return false;
     }
 

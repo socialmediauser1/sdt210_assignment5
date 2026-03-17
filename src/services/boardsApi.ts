@@ -29,6 +29,8 @@
  * alter table public.board_members enable row level security;
  * create policy "members_own" on public.board_members for all
  *   using (user_id = auth.uid()) with check (user_id = auth.uid());
+ * create policy "members_board_owner_view" on public.board_members for select
+ *   using (exists (select 1 from public.boards where id = board_id and owner_id = auth.uid()));
  *
  * -- 3. Add board_id to existing tables (nullable first for migration)
  * alter table public.columns add column if not exists board_id uuid references public.boards(id) on delete cascade;

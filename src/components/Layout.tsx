@@ -124,22 +124,25 @@ export default function Layout() {
 }
 
 function BoardSwitcher({ currentUserId }: { currentUserId: string }) {
-  const boards         = useBoardsStore((s) => s.boards);
-  const activeBoardId  = useBoardsStore((s) => s.activeBoardId);
-  const boardMembers   = useBoardsStore((s) => s.boardMembers);
-  const loading        = useBoardsStore((s) => s.loading);
-  const error          = useBoardsStore((s) => s.error);
-  const setActiveBoard = useBoardsStore((s) => s.setActiveBoard);
-  const createTeamBoard = useBoardsStore((s) => s.createTeamBoard);
-  const joinByCode     = useBoardsStore((s) => s.joinByCode);
-  const leaveBoard     = useBoardsStore((s) => s.leaveBoard);
-  const deleteBoard    = useBoardsStore((s) => s.deleteBoard);
+  const boards           = useBoardsStore((s) => s.boards);
+  const activeBoardId    = useBoardsStore((s) => s.activeBoardId);
+  const boardMembers     = useBoardsStore((s) => s.boardMembers);
+  const loading          = useBoardsStore((s) => s.loading);
+  const error            = useBoardsStore((s) => s.error);
+  const setActiveBoard   = useBoardsStore((s) => s.setActiveBoard);
+  const createTeamBoard  = useBoardsStore((s) => s.createTeamBoard);
+  const joinByCode       = useBoardsStore((s) => s.joinByCode);
+  const leaveBoard       = useBoardsStore((s) => s.leaveBoard);
+  const deleteBoard      = useBoardsStore((s) => s.deleteBoard);
+  const loadBoardMembers = useBoardsStore((s) => s.loadBoardMembers);
 
   const [open, setOpen]       = useState(false);
   const [view, setView]       = useState<"list" | "create" | "join">("list");
   const [inputVal, setInputVal] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<Board | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  const activeBoard = boards.find((b) => b.id === activeBoardId);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -154,7 +157,11 @@ function BoardSwitcher({ currentUserId }: { currentUserId: string }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const activeBoard = boards.find((b) => b.id === activeBoardId);
+  useEffect(() => {
+    if (open && activeBoard?.type === "team" && activeBoardId) {
+      void loadBoardMembers(activeBoardId);
+    }
+  }, [open, activeBoard?.type, activeBoardId, loadBoardMembers]);
 
   const handleAction = async () => {
     if (view === "create" && inputVal.trim()) {

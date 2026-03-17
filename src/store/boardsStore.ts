@@ -72,7 +72,8 @@ export const useBoardsStore = create<BoardsStore>((set, get) => ({
     try {
       const members = await supabaseBoardsApi.getBoardMembers(boardId);
       set({ boardMembers: members });
-    } catch {
+    } catch (err) {
+      console.error("loadBoardMembers failed:", err);
     }
   },
 
